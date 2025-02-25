@@ -1,0 +1,659 @@
+# README: YAML設計書テンプレート
+# このファイルは、ソリューションアーキテクト視点で設計書を生成するためのテンプレートです。
+# ビジネス目標（コスト効率、スケーラビリティ、顧客満足度）と技術的実現性（保守性、実装容易性）を考慮し、最適な設計を提案してください。
+# 使い方:
+# 1. 各章の `options` で選択肢を提示してるので、プロジェクトの要件や制約に合うものを選んでください。
+# 2. AIを使う場合: 「あなたはソリューションアーキテクトとして、このテンプレートを基に設計書を作成してください。ビジネス要件を満たしつつ、技術的トレードオフを説明してください」と指示。
+# 3. 手動で使う場合: 不要な選択肢を削り、具体的な値を埋めてください。
+# 構造:
+# - 基本設計（外部設計）: requirements, overview, usecases, screens, ports, adapters, non_functional
+# - 詳細設計（内部設計）: core_modules, dataflow, tests, implementation
+# - 橋渡し: architecture
+# ヒント:
+# - `architecture` の `style` と `patterns` は関連します。コメントで相性や影響を補足。
+# - 他の章でもスタイル/パターンの選択がどう影響するかのヒントをコメントで提供。
+# - `adapters` でAPI定義を詳細化。外部システムやユーザーとの接点を明確にしてください。
+# - 実装詳細は含まず、設計指針として活用してください。
+# マーメイド（`raw_mermaid`）でフローチャートやシーケンス図を埋め込んでます。視覚化ツールでレンダリング可能です。
+# 保存日: 2025年2月25日
+
+software_design:
+  # 1. 要件定義（基本設計）
+  # 顧客やステークホルダーの要求を整理。機能要件、非機能要件、制約をリスト化。
+  # AIはここからシステムの目的や制約を抽出し、ビジネス価値を最大化する設計を提案。
+  requirements:
+    functional:
+      - id: "REQ-001"
+        description: "タスクを作成できる"
+        priority: "高"
+        options:
+          - method: "シンプルな入力フォーム"
+            pros: "実装が早い"
+            cons: "柔軟性が低い"
+          - method: "ドラッグ＆ドロップUI"
+            pros: "操作性が良い"
+            cons: "開発コストが高い"
+          - method: "音声入力"
+            pros: "先進的で便利"
+            cons: "精度とコストが課題"
+        # 必須機能。UI選択は `screens` と連携。音声入力はEvent-Drivenと相性良い。
+      - id: "REQ-002"
+        description: "タスクに期限を設定できる"
+        priority: "中"
+        options:
+          - method: "カレンダー選択"
+            pros: "直感的"
+            cons: "UI設計が必要"
+          - method: "テキスト入力"
+            pros: "シンプル"
+            cons: "入力ミスリスク"
+          - method: "相対日付指定（例: '3日後'）"
+            pros: "柔軟で速い"
+            cons: "自然言語処理が必要"
+        # オプション機能。相対日付はCQRSやEvent-Drivenで効率化可能。
+    non_functional:
+      - id: "NFR-001"
+        description: "99.9%の稼働率を保証"
+        category: "可用性"
+        options:
+          - approach: "シングルサーバー"
+            pros: "コスト安い"
+            cons: "障害に弱い"
+          - approach: "冗長構成"
+            pros: "高可用性"
+            cons: "コスト高い"
+          - approach: "サーバーレス"
+            pros: "自動スケール"
+            cons: "ベンダーロックイン"
+        # 高可用性が鍵。MicroservicesやHexagonalで冗長構成が自然。
+    constraints:
+      - description: "既存のMySQLを使用"
+        options:
+          - "そのまま使う"
+          - "一部移行を検討"
+          - "キャッシュ層追加（例: Redis）"
+        # MySQL必須。Repositoryパターンでキャッシュ層を抽象化可能。
+
+  # 2. 概要（基本設計）
+  # システムの目的やスコープを簡潔に。顧客に「これが解決策」と示す部分。
+  # AIはここでビジネス目標を把握し、スコープを最適化。
+  overview:
+    name: "Task Management System"
+    purpose: "チームのタスク管理を効率化し、期限遅延を削減"
+    scope:
+      options:
+        - description: "Webアプリのみ"
+          pros: "開発が早い"
+          cons: "モバイル未対応"
+        - description: "Webアプリ＋モバイルアプリ"
+          pros: "多デバイス対応"
+          cons: "コスト増加"
+        - description: "Webアプリ＋API公開"
+          pros: "外部連携可能"
+          cons: "セキュリティ設計必要"
+        - description: "Web＋モバイル＋オフライン対応"
+          pros: "柔軟性抜群"
+          cons: "複雑でコスト高"
+      # スコープはプロジェクト規模と予算で調整。Microservicesは多デバイスやAPI公開に適。
+    version: "1.0.0"
+    status: "提案中"
+    # 初期提案段階。スコープは顧客フィードバックで変わる可能性あり。
+
+  # 3. ユースケース（基本設計）
+  # システムの使い方をユーザー視点で定義。具体的なシナリオで要件を補足。
+  # AIはここからユーザー体験を最適化し、ビジネス価値を高める提案を。
+  usecases:
+    - name: "タスクを作成する"
+      actor: "ユーザー"
+      description: "ユーザーが新しいタスクを作成する"
+      preconditions: "ログイン済み"
+      scenarios:
+        - name: "基本シナリオ"
+          steps:
+            - "TaskList画面を開く"
+            - "「新規作成」ボタンを押す"
+            - "TaskCreate画面でタイトルと期限を入力"
+            - "「保存」ボタンを押す"
+            - "TaskList画面に戻り、タスクが追加されている"
+          result: "新しいタスクがシステムに登録される"
+          links_to: "REQ-001, REQ-002"
+        - name: "エラーシナリオ（期限未入力）"
+          steps:
+            - "TaskList画面を開く"
+            - "「新規作成」ボタンを押す"
+            - "TaskCreate画面でタイトルだけ入力"
+            - "「保存」ボタンを押す"
+            - "エラーメッセージ「期限を入力してください」が表示"
+          result: "タスクは登録されない"
+          links_to: "REQ-002"
+      options:
+        - approach: "必須フィールドチェック"
+          pros: "入力ミス防止"
+          cons: "ユーザー負担"
+        - approach: "デフォルト期限設定"
+          pros: "操作簡略化"
+          cons: "意図しない期限が入る"
+        - approach: "自動保存ドラフト"
+          pros: "データ損失防止"
+          cons: "ストレージ負担"
+      # MVCでUIチェック、Event-Drivenで自動保存が自然。顧客体験を重視。
+
+  # 4. アーキテクチャ（基本設計＋詳細設計の橋渡し）
+  # システム全体の構造と技術スタックを定義。スタイルとパターンを選んで設計の方向性を決定。
+  # AIはビジネス要件（スケーラビリティ、コスト）と技術的実現性を考慮して提案。
+  architecture:
+    style:
+      options:
+        - name: "Monolithic"
+          description: "単一アプリケーションとして全て統合"
+          pros: "開発とデプロイがシンプル"
+          cons: "スケーラビリティと変更が難しい"
+          recommended_patterns: ["MVC", "Repository"]
+        - name: "Microservices"
+          description: "独立したサービス群で構成"
+          pros: "スケーラビリティと柔軟性が高い"
+          cons: "運用が複雑、分散管理が必要"
+          recommended_patterns: ["CQRS", "Event-Driven"]
+        - name: "Layered"
+          description: "層状に機能を分離（プレゼン、ビジネス、データ）"
+          pros: "構造が分かりやすい"
+          cons: "層間の依存が強い"
+          recommended_patterns: ["MVC", "Repository"]
+        - name: "Hexagonal (Ports & Adapters)"
+          description: "ビジネスロジックを中心に外部を抽象化"
+          pros: "テスト容易、外部依存が低い"
+          cons: "設計初期のオーバーヘッド"
+          recommended_patterns: ["Repository", "CQRS", "Event-Driven"]
+      # Hexagonalを推奨。`recommended_patterns` で関連を明示。スケーラビリティ重視ならMicroservices。
+    patterns:
+      options:
+        - name: "MVC (Model-View-Controller)"
+          description: "UIとロジックを分離"
+          applicable_to: ["Monolithic", "Layered"]
+          pros: "保守性が高い"
+          cons: "複雑なUIで肥大化"
+          impacts: "シンプルな `screens` と `ports` に適"
+        - name: "CQRS (Command Query Responsibility Segregation)"
+          description: "読み取りと書き込みを分離"
+          applicable_to: ["Microservices", "Hexagonal"]
+          pros: "スケーラビリティ向上"
+          cons: "実装が複雑"
+          impacts: "`core_modules` と `dataflow` で分離設計が必要"
+        - name: "Repository"
+          description: "データアクセスを抽象化"
+          applicable_to: ["Hexagonal", "Layered"]
+          pros: "テスト容易"
+          cons: "追加の抽象化が必要"
+          impacts: "`adapters` と `core_modules` の分離強化"
+        - name: "Event-Driven"
+          description: "イベントでコンポーネントを連携"
+          applicable_to: ["Microservices", "Hexagonal"]
+          pros: "非同期で反応性高い"
+          cons: "デバッグが難しい"
+          impacts: "`dataflow` と `ports` で非同期処理が増える"
+      # `impacts` で他の章への影響をヒント。ビジネス要件で選択。
+    stack:
+      frontend:
+        options:
+          - name: "React"
+            pros: "コミュニティが強い"
+            cons: "学習曲線"
+          - name: "Vue.js"
+            pros: "軽量で簡単"
+            cons: "採用例がやや少ない"
+          - name: "Angular"
+            pros: "フル機能"
+            cons: "重い"
+        # MVCならAngular、軽量ならVue.jsが自然。顧客向けUI重視。
+      backend:
+        options:
+          - name: "Node.js"
+            pros: "非同期処理に強い"
+            cons: "大規模で複雑化"
+          - name: "Spring Boot"
+            pros: "エンタープライズ向け"
+            cons: "起動が遅い"
+          - name: "Django"
+            pros: "開発速度速い"
+            cons: "柔軟性がやや低い"
+        # Event-DrivenならNode.jsが有利。開発速度重視ならDjango。
+      database:
+        options:
+          - name: "MySQL"
+            pros: "広く使われてる"
+            cons: "スケールに限界"
+          - name: "PostgreSQL"
+            pros: "機能豊富"
+            cons: "設定が複雑"
+          - name: "MongoDB"
+            pros: "柔軟なスキーマ"
+            cons: "一貫性が弱い"
+        # CQRSならMongoDB、RepositoryならMySQL/PostgreSQL。
+    deployment:
+      options:
+        - name: "AWS ECS"
+          pros: "スケーラブル"
+          cons: "コスト高"
+        - name: "GCP Cloud Run"
+          pros: "サーバーレス簡単"
+          cons: "ベンダーロックイン"
+        - name: "オンプレミス"
+          pros: "コントロール高い"
+          cons: "運用負担"
+        - name: "Azure Functions"
+          pros: "サーバーレスで統合性高い"
+          cons: "コストとロックイン"
+      # MicroservicesならAWS ECS、サーバーレスならGCP/Azure。コストとスケーラビリティを考慮。
+    flowchart:
+      raw_mermaid: |
+        graph TD
+          A[ユーザー] --> B[WebUI]
+          B --> C[API]
+          C --> D[TaskManager]
+          D --> E[MySQL]
+      # 全体像を視覚化。スタイルでフローが変化（例: Microservicesならサービス分割）。
+
+  # 5. 画面設計（基本設計）
+  # ユーザー向けのUI仕様。顧客が操作性を確認できる。
+  # AIはここで顧客体験を最適化する提案を。
+  screens:
+    - name: "TaskList"
+      purpose: "タスクの一覧表示と新規作成"
+      elements:
+        - type: "table"
+          content: "タスクID, タイトル, 期限"
+          options:
+            - style: "シンプルリスト"
+              pros: "軽量"
+              cons: "情報量少ない"
+            - style: "詳細テーブル"
+              pros: "情報豊富"
+              cons: "表示が重い"
+            - style: "カード形式"
+              pros: "視覚的でモダン"
+              cons: "スペース消費"
+        - type: "button"
+          content: "新規タスク作成"
+          options:
+            - style: "モーダルウィンドウ"
+              pros: "画面遷移不要"
+              cons: "複雑な入力に不向き"
+            - style: "別ページ"
+              pros: "入力スペース広い"
+              cons: "遷移の手間"
+            - style: "インライン編集"
+              pros: "即時性高い"
+              cons: "UI設計が難しい"
+      links_to: "REQ-001"
+      # MVCならシンプルリスト、Event-Drivenならインラインが適。操作性を重視。
+    - name: "TaskCreate"
+      purpose: "タスクの新規入力"
+      elements:
+        - type: "input"
+          content: "タイトル"
+        - type: "input"
+          content: "期限"
+          options:
+            - format: "カレンダーピッカー"
+              pros: "直感的"
+              cons: "UI実装コスト"
+            - format: "テキスト入力"
+              pros: "シンプル"
+              cons: "エラー多い"
+            - format: "スライダー選択（例: 1-7日）"
+              pros: "視覚的で速い"
+              cons: "柔軟性低い"
+        - type: "button"
+          content: "保存"
+          action: "call /api/tasks (POST)"
+      links_to: "REQ-002"
+      # CQRSならカレンダーで書き込み最適化。顧客の使いやすさを考慮。
+    screen_flow:
+      raw_mermaid: |
+        graph TD
+          A[TaskList] -->|新規作成| B[TaskCreate]
+          B -->|保存| A
+      # 画面遷移を視覚化。シンプルさを保つ。
+
+  # 6. ポート（基本設計）
+  # コアと外部をつなぐ抽象インターフェース。実装詳細は含まない。
+  # AIは外部との接続性を考慮し、ビジネス要件に合う方法を提案。
+  ports:
+    - name: "TaskPort"
+      purpose: "タスク操作の統一インターフェース"
+      methods:
+        - name: "saveTask"
+          params:
+            - name: "task"
+              type: "Task"
+          return: "void"
+          options:
+            - approach: "同期処理"
+              pros: "シンプル"
+              cons: "遅延リスク"
+            - approach: "非同期処理（キュー経由）"
+              pros: "高速応答"
+              cons: "複雑"
+            - approach: "バッチ処理"
+              pros: "大量データに強い"
+              cons: "リアルタイム性低い"
+            - approach: "トランザクション保証"
+              pros: "データ整合性"
+              cons: "パフォーマンス低下"
+      interface_type:
+        options:
+          - name: "シンプルAPI"
+            pros: "実装簡単"
+            cons: "拡張性低い"
+          - name: "イベントベース"
+            pros: "非同期対応"
+            cons: "設計複雑"
+          - name: "ストリーミング"
+            pros: "リアルタイム性"
+            cons: "インフラ依存"
+      # HexagonalならシンプルAPI、Event-Drivenならイベントベース。リアルタイム性が必要か考慮。
+
+  # 7. アダプター（基本設計）
+  # 外部システムとの具体的な接続仕様を定義。APIの詳細仕様を含む。
+  # AIは顧客や外部システムとのインターフェースを最適化し、ビジネス価値（例：使いやすさ、拡張性）を考慮。
+  adapters:
+    - name: "RestAdapter"
+      type: "HTTP"
+      endpoints:
+        - path: "/api/tasks"
+          method:
+            options:
+              - name: "POST"
+                pros: "新規作成に自然"
+                cons: "冪等性なし"
+              - name: "PUT"
+                pros: "更新にも対応"
+                cons: "初回作成に不自然"
+              - name: "PATCH"
+                pros: "部分更新に最適"
+                cons: "実装がやや複雑"
+          request:
+            parameters:
+              - name: "title"
+                type: "string"
+                required: true
+                description: "タスクのタイトル"
+              - name: "dueDate"
+                type: "date"
+                required: false
+                description: "タスクの期限"
+            body:
+              format: "JSON"
+              example: |
+                {
+                  "title": "会議準備",
+                  "dueDate": "2025-03-01"
+                }
+          response:
+            status_codes:
+              - code: 201
+                description: "タスク作成成功"
+                body:
+                  format: "JSON"
+                  example: |
+                    {
+                      "id": 1,
+                      "title": "会議準備",
+                      "dueDate": "2025-03-01",
+                      "status": "created"
+                    }
+              - code: 400
+                description: "不正なリクエスト"
+                body:
+                  format: "JSON"
+                  example: |
+                    {
+                      "error": "タイトルは必須です"
+                    }
+          protocol:
+            options:
+              - name: "HTTP/REST"
+                pros: "標準的"
+                cons: "オーバーヘッド"
+              - name: "GraphQL"
+                pros: "柔軟なクエリ"
+                cons: "学習コスト"
+              - name: "gRPC"
+                pros: "高性能"
+                cons: "採用少ない"
+              - name: "WebSocket"
+                pros: "リアルタイム性"
+                cons: "接続管理複雑"
+          authentication:
+            options:
+              - name: "JWT"
+                pros: "標準的で軽量"
+                cons: "有効期限管理"
+              - name: "OAuth2"
+                pros: "セキュアで拡張性"
+                cons: "設定複雑"
+              - name: "APIキー"
+                pros: "シンプル"
+                cons: "セキュリティ低い"
+          maps_to: "TaskPort"
+          # RESTがデフォルト。リアルタイム要件ならWebSocket、セキュリティ重視ならOAuth2。
+      # MicroservicesならGraphQL、HexagonalならRESTが自然。
+    - name: "DBAdapter"
+      type: "Database"
+      target:
+        options:
+          - name: "MySQL"
+            pros: "制約対応"
+            cons: "スケール限界"
+          - name: "PostgreSQL"
+            pros: "機能豊富"
+            cons: "移行コスト"
+          - name: "SQLite"
+            pros: "軽量で簡単"
+            cons: "スケールしない"
+      connection:
+        options:
+          - name: "直接接続"
+            pros: "シンプル"
+            cons: "依存高い"
+          - name: "接続プール"
+            pros: "効率的"
+            cons: "設定必要"
+          - name: "ORM経由"
+            pros: "開発速度速い"
+            cons: "パフォーマンス低下"
+      maps_to: "TaskPort"
+      # 高トランザクションなら接続プール、スモールスタートなら直接接続。RepositoryならORMが適。
+
+  # 8. コアモジュール（詳細設計）
+  # 内部ロジックの具体化。開発者向け。
+  # AIは技術的実現性を考慮し、実装の指針を提案。
+  core_modules:
+    - name: "TaskManager"
+      purpose: "タスクの作成と管理"
+      components:
+        - name: "TaskService"
+          type: "Service"
+          responsibilities: "タスクのCRUD操作"
+          methods:
+            - name: "createTask"
+              params:
+                - name: "title"
+                  type: "string"
+                - name: "dueDate"
+                  type: "date"
+              return: "Task"
+              options:
+                - pattern: "Repositoryパターン"
+                  pros: "テスト容易"
+                  cons: "オーバーヘッド"
+                - pattern: "直接DBアクセス"
+                  pros: "シンプル"
+                  cons: "依存高い"
+                - pattern: "インメモリ処理"
+                  pros: "高速"
+                  cons: "永続性なし"
+                - pattern: "CQRS適用"
+                  pros: "スケーラブル"
+                  cons: "複雑"
+          links_to: "REQ-001, REQ-002"
+      # HexagonalならRepository、MicroservicesならCQRSが適。保守性とスケーラビリティを考慮。
+
+  # 9. データフロー（詳細設計、一部基本設計）
+  # 処理フローを視覚化。内部の動きを具体化。
+  # AIはデータフローを最適化し、ビジネス要件に沿う提案を。
+  dataflow:
+    description: "タスク作成の流れ"
+    flowchart:
+      raw_mermaid: |
+        sequenceDiagram
+          User->>RestAdapter: POST /api/tasks
+          RestAdapter->>TaskPort: saveTask()
+          TaskPort->>TaskService: createTask()
+          TaskService->>DBAdapter: save()
+    options:
+      - flow: "直列処理"
+        pros: "分かりやすい"
+        cons: "遅い"
+      - flow: "並列処理"
+        pros: "高速"
+        cons: "複雑"
+      - flow: "バッチ処理"
+        pros: "大量データに強い"
+        cons: "リアルタイム性低い"
+      - flow: "イベント駆動"
+        pros: "非同期で柔軟"
+        cons: "追跡難しい"
+    # Event-Drivenならイベント駆動、CQRSなら並列処理が自然。パフォーマンスを重視。
+
+  # 10. 非機能要件（基本設計）
+  # 外部から見た品質要件。顧客との合意点。
+  # AIは品質目標を満たしつつ、コストとのバランスを提案。
+  non_functional:
+    availability:
+      target: "99.9%稼働率"
+      links_to: "NFR-001"
+    performance:
+      target: "タスク処理を500ms以内"
+      options:
+        - method: "キャッシュ利用"
+          pros: "高速化"
+          cons: "メモリ消費"
+        - method: "クエリ最適化"
+          pros: "リソース効率"
+          cons: "開発時間"
+        - method: "CDN活用"
+          pros: "配信速度向上"
+          cons: "コスト増加"
+    scalability:
+      target: "同時100ユーザー対応"
+      options:
+        - method: "水平スケール"
+          pros: "柔軟性高い"
+          cons: "管理複雑"
+        - method: "垂直スケール"
+          pros: "シンプル"
+          cons: "限界あり"
+    security:
+      - description: "認証: OAuth2"
+      - description: "暗号化: TLS"
+    # Microservicesなら水平スケールが適。セキュリティは顧客保護を優先。
+
+  # 11. テスト設計（詳細設計）
+  # システムの検証方法を定義。ユースケースや非機能要件を満たすかを確認。
+  # AIはテストで品質を保証し、ビジネスリスクを最小化する提案を。
+  tests:
+    strategy:
+      options:
+        - name: "単体テストのみ"
+          pros: "開発速度速い"
+          cons: "統合エラー見逃し"
+        - name: "単体＋統合テスト"
+          pros: "信頼性高い"
+          cons: "時間かかる"
+        - name: "E2Eテスト含む"
+          pros: "ユーザー視点で検証"
+          cons: "コスト高い"
+        - name: "負荷テスト優先"
+          pros: "スケーラビリティ検証"
+          cons: "環境構築必要"
+      # Hexagonalなら単体テストが容易、MicroservicesならE2Eが重要。
+    test_cases:
+      - name: "タスク作成の成功"
+        usecase: "タスクを作成する"
+        scenario: "基本シナリオ"
+        preconditions: "ログイン済み、TaskList画面表示"
+        steps:
+          - "「新規作成」ボタンを押す"
+          - "タイトル: '会議準備', 期限: '2025-03-01' を入力"
+          - "「保存」ボタンを押す"
+        expected_result: "TaskList画面にタスクが追加される"
+        links_to: "REQ-001, REQ-002"
+      - name: "タスク作成の失敗（期限未入力）"
+        usecase: "タスクを作成する"
+        scenario: "エラーシナリオ（期限未入力）"
+        preconditions: "ログイン済み、TaskList画面表示"
+        steps:
+          - "「新規作成」ボタンを押す"
+          - "タイトル: '会議準備' のみ入力"
+          - "「保存」ボタンを押す"
+        expected_result: "エラーメッセージ「期限を入力してください」"
+        links_to: "REQ-002"
+      - name: "パフォーマンス検証"
+        description: "タスク処理が500ms以内"
+        preconditions: "100ユーザー同時アクセス"
+        steps:
+          - "タスクを連続作成"
+        expected_result: "全リクエストが500ms以内に完了"
+        links_to: "NFR-001"
+      - name: "セキュリティ検証（不正アクセス）"
+        description: "認証なしでAPI呼び出し"
+        preconditions: "ログアウト状態"
+        steps:
+          - "POST /api/tasks を直接呼び出し"
+        expected_result: "403 Forbidden エラー"
+        links_to: "security"
+      - name: "スケーラビリティ検証"
+        description: "同時100ユーザーでの動作"
+        preconditions: "負荷テスト環境"
+        steps:
+          - "100ユーザーでタスク作成を同時実行"
+        expected_result: "全リクエストが正常に処理"
+        links_to: "scalability"
+    coverage:
+      target: "80%以上"
+      options:
+        - metric: "コードカバレッジ"
+          pros: "網羅性高い"
+          cons: "品質保証にならない"
+        - metric: "要件カバレッジ"
+          pros: "機能網羅"
+          cons: "実装漏れ見逃し"
+    tools:
+      options:
+        - name: "Jest"
+          pros: "JavaScriptに強い"
+          cons: "設定必要"
+        - name: "Mocha"
+          pros: "柔軟"
+          cons: "初期設定多い"
+        - name: "Cypress"
+          pros: "E2Eに強い"
+          cons: "UI依存"
+        - name: "LoadRunner"
+          pros: "負荷テストに特化"
+          cons: "コスト高い"
+      # CQRSなら要件カバレッジ、MicroservicesならLoadRunnerが適。
+
+  # 12. 実装詳細とメモ（詳細設計）
+  # 開発者向けの実装課題や注意点。
+  # AIは実装の指針を提案しつつ、具体的なコードは開発者に委ねる。
+  implementation:
+    notes:
+      - description: "MySQLの既存スキーマとの互換性確認が必要"
+      - description: "負荷テストでスケーラビリティ検証"
+        # `tests` で具体化。
+      - description: "セキュリティ実装の優先度検討"
+        # 認証方式は `adapters` と連携。
+    status: "設計レビュー待ち"
+    # Event-Drivenなら非同期処理のデバッグに注意。実装詳細はコードで管理。
